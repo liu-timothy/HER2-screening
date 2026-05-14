@@ -32,9 +32,92 @@ paths <- list(
 walk(paths, ~dir.create(.x, showWarnings = FALSE, recursive = TRUE))
 ```
 
+GSE169379_MIBC_snSeq.h5ad: 25 treatment-naive muscle-invasive bladder cancer (MIBC) patients
+- Contains CDH12+ epithelial subpopulation that predicts poor outcome after surgery/chemo but good response to immunotherapy
+
+GSE169379_non_tumor_snSeq.h5ad: 3 histologically-normal bladder tissue samples
+
+
 ```{r}
-library(anndataR)
+
+# muscle-invasive bladder cancer
+mibc_h5ad_path <- here("data", "GSE169379_MIBC_snSeq.h5ad")
+
+#normal bladder
+normal_h5ad_path <- here("data", "GSE169379_non_tumor_snSeq.h5ad")
+
+library(sceasy)
+
+mibc   <- convertFormat(mibc_h5ad_path, from = "anndata", to = "seurat")
+normal <- convertFormat(normal_h5ad_path, from = "anndata", to = "seurat")
+
+```
+
+```{r}
+mibc_epithelial <- subset(mibc, subset=celltype=="Epithelial")
+normal_known <- subset(normal, subset= SubType_Normal != "Normal_Unk") #filter out unknown cell types
+
+```
+
+
+Inputs for inferCNV
+```{r}
+
+```
+
+
+
+```{r}
+
+infercnv_obj = CreateInfercnvObject(raw_counts_matrix="singleCell.counts.matrix",
+                                    annotations_file="cellAnnotations.txt",
+                                    delim="\t",
+                                    gene_order_file="gene_ordering_file.txt",
+                                    ref_group_names=c("normal"))
+
+# perform infercnv operations to reveal cnv signal
+infercnv_obj = infercnv::run(infercnv_obj,
+                             cutoff=1,  # use 1 for smart-seq, 0.1 for 10x-genomics
+                             out_dir="output_dir",  # dir is auto-created for storing outputs
+                             cluster_by_groups=T,   # cluster
+                             denoise=T,
+                             HMM=T
+                             )
+
+```
+
+
+Module Scoring
+```{r}
+her2_positive <- c("MEAF6", "HMGCS1", "ZFYVE19", "GIPC2", "FGG", "ZWILCH", "TUT1", "POLE", "ZPR1", "CDKL2", "RIPOR1", "NUP58", "PPIL1", "PSMA4", "XRN1", "HIST2H2AC", "UGT1A4", "SRP68", "SNX21", "ABCE1", "ERBB2", "CCT6B", "TLR7", "GRHL2")
+# ZNF259 -> ZPR1
+# FAM65A -> RIPOR1
+# NUPL1 -> NUP58
+
+
+her2_negative <-c("WDR3", "EIF3G", "UQCRC2", "ZCCHC9", "RRM2", "NDUFAF7", "PRAME", "RPF2", "MED7", "IQCF3", "RPL14", "HEATR1", "RPS20", "CMTM1", "RPS17", "RPS15A")
+
+```
+
+```{r}
+AddModuleScore(
+  object,
+  features,
+  pool = NULL,
+  nbin = 24,
+  ctrl = 100,
+  k = FALSE,
+  assay = NULL,
+  name = "Cluster",
+  seed = 1,
+  search = FALSE,
+  slot = "data",
+  ...
+)
 
 
 ```
+
+
+
 
