@@ -1,17 +1,40 @@
 ---
-output: reprex::reprex_document
-knit: reprex::reprex_render
+title: "snRNA-seq HER2 Analysis"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    code_folding: show
+    toc: true
+    toc_float: true
+    fig_width: 10
+    fig_height: 8
 ---
+```{r}
+set.seed(42)
 
-Describe your issue very briefly here. Then show it with a minimal, self-contained example in the following R chunk.
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  cache = TRUE
+)
+
+library(Seurat)
+library(tidyverse)
+library(here)
+
+paths <- list(
+  raw = here("data", "raw"),
+  results = here("results")
+)
+
+walk(paths, ~dir.create(.x, showWarnings = FALSE, recursive = TRUE))
+```
 
 ```{r}
-renv::init()      # Creates renv.lock + private library
-renv::snapshot()  # Save current package state to renv.lock
-renv::restore()   # On other machine: recreate exact environment
+library(anndataR)
+
+
 ```
 
-
-``` {r}
-
-```
