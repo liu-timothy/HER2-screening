@@ -9,16 +9,39 @@ output:
     fig_width: 10
     fig_height: 8
 ---
+
+1. Restore packages
+```{r}
+if (!require("renv", character.only = TRUE, quietly = TRUE)) {
+  install.packages("renv")
+}
+
+if (!file.exists("renv.lock")) {
+  stop("No renv.lock found. Run renv::snapshot() on source machine.")
+}
+
+renv::restore()
+```
+
+2. Load knitr options
+```{r}
+knitr::opts_chunk$set(
+  echo = TRUE,           # Show code
+  message = FALSE,       # Hide package load messages
+  warning = FALSE,       # Hide warnings
+  error = FALSE,         # Stop on error (don't keep knitting)
+  fig.align = "center",
+  fig.width = 8,         # Default figure width (inches)
+  fig.height = 6,        # Default figure height
+  dpi = 300,             # Publication-quality resolution
+  cache = TRUE,          # Cache expensive chunks
+  cache.lazy = FALSE     # Safer for large objects (Seurat, etc.)
+)
+```
+
+3. Load libraries
 ```{r}
 set.seed(42)
-
-knitr::opts_chunk$set(
-  echo = TRUE,
-  message = FALSE,
-  warning = FALSE,
-  fig.align = "center",
-  cache = TRUE
-)
 
 library(Seurat)
 library(tidyverse)
