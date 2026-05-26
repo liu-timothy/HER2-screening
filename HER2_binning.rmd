@@ -15,7 +15,7 @@ output:
 set.seed(42)
 
 # 1. Install and load required R packages
-required_packages <- c("Seurat", "tidyverse", "here", "sceasy", "reticulate")
+required_packages <- c("Seurat", "tidyverse", "here", "sceasy", "reticulate", "ggplot2", "ggrepel")
 
 for (pkg in required_packages) {
   if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
@@ -24,17 +24,62 @@ for (pkg in required_packages) {
   }
 }
 
-# 2. Setup Python environment with anndata
-if (!reticulate::py_module_available("anndata")) {
-  message("Installing anndata Python package...")
-  reticulate::py_install("anndata", pip = TRUE)
-  message("anndata installation complete!")
+# 2. Install BiocManager if needed
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
 }
 
-# 3. Verify Python setup
-stopifnot("anndata not available" = reticulate::py_module_available("anndata"))
+# 3. Install Bioconductor packages
+bioc_packages <- c("clusterProfiler", "enrichplot", "org.Hs.eg.db")
 
-# 4. Create directories
+for (pkg in bioc_packages) {
+  if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
+    BiocManager::install(pkg, update = FALSE, ask = FALSE)
+    library(pkg, character.only = TRUE)
+  }
+}
+
+#4 Install NicheNet
+if (!require("nichenetr", quietly = TRUE)) {
+  install.packages("devtools")  # Only if you don't have it
+  devtools::install_github("saeyslab/nichenetr")
+  library(nichenetr)
+}
+
+#5 Setup Python aand verify anndata
+library(reticulate)
+
+
+if (!py_module_available("anndata")) {
+  message("anndata not found. Setting up Python environment...")
+  
+  # Option 1: Install in reticulate's default environment
+  tryCatch({
+    py_install("anndata")
+    message("Successfully installed anndata")
+  }, error = function(e) {
+    message("Failed to install in default environment: ", e$message)
+    message("Trying alternative approach...")
+    
+    # Option 2: Create a dedicated conda environment
+    if (requireNamespace("reticulate", quietly = TRUE)) {
+      conda_env <- "r-reticulate"
+      if (!conda_env %in% conda_list()$name) {
+        conda_create(conda_env, packages = "python=3.9")
+      }
+      use_condaenv(conda_env, required = TRUE)
+      py_install("anndata", envname = conda_env)
+    }
+  })
+}
+
+# Verify anndata is now available
+stopifnot("anndata is still not available. Please install manually: pip install anndata" = 
+          py_module_available("anndata"))
+
+message("✓ All packages and Python modules are ready!")
+
+# 6 Create directories
 paths <- list(
   raw = here("data", "raw"),
   results = here("results")
@@ -51,8 +96,8 @@ knitr::opts_chunk$set(
   warning = FALSE,       # Hide warnings
   error = FALSE,         # Stop on error (don't keep knitting)
   fig.align = "center",
-  fig.width = 8,         # Default figure width (inches)
-  fig.height = 6,        # Default figure height
+  # fig.width = 8,         # Default figure width (inches)
+  # fig.height = 6,        # Default figure height
   dpi = 300,             # Publication-quality resolution
   cache = TRUE,          # Cache expensive chunks
   cache.lazy = FALSE     # Safer for large objects (Seurat, etc.)
@@ -83,6 +128,28 @@ mibc <- subset(mibc, cells=sample(Cells(mibc), size=floor(0.01*ncol(mibc))))
 
 ```
 
+Visualize UMAP and tsne
+```{r}
+mibc <- NormalizeData(mibc)
+mibc <- FindVariableFeatures(mibc)
+mibc <- ScaleData(mibc)
+mibc <- RunPCA(mibc)
+mibc <- RunUMAP(mibc, dims = 1:30)
+mibc <- RunTSNE(mibc, dims = 1:30)
+
+normal <- NormalizeData(normal)
+normal <- FindVariableFeatures(normal)
+normal <- ScaleData(normal)
+normal <- RunPCA(normal)
+normal <- RunUMAP(normal, dims = 1:30)
+normal <- RunTSNE(normal)
+```
+
+```{r}
+DimPlot(mibc, reduction = "umap", group.by = "initial_celltype")
+
+```
+
 ```{r}
 mibc_epithelial <- subset(mibc, subset=celltype=="Epithelial")
 normal_known <- subset(normal, subset= SubType_Normal != "Normal_Unk") #filter out unknown cell types
@@ -99,20 +166,20 @@ Inputs for inferCNV
 
 ```{r}
 
-infercnv_obj = CreateInfercnvObject(raw_counts_matrix="singleCell.counts.matrix",
-                                    annotations_file="cellAnnotations.txt",
-                                    delim="\t",
-                                    gene_order_file="gene_ordering_file.txt",
-                                    ref_group_names=c("normal"))
-
-# perform infercnv operations to reveal cnv signal
-infercnv_obj = infercnv::run(infercnv_obj,
-                             cutoff=1,  # use 1 for smart-seq, 0.1 for 10x-genomics
-                             out_dir="output_dir",  # dir is auto-created for storing outputs
-                             cluster_by_groups=T,   # cluster
-                             denoise=T,
-                             HMM=T
-                             )
+# infercnv_obj = CreateInfercnvObject(raw_counts_matrix="singleCell.counts.matrix",
+#                                     annotations_file="cellAnnotations.txt",
+#                                     delim="\t",
+#                                     gene_order_file="gene_ordering_file.txt",
+#                                     ref_group_names=c("normal"))
+# 
+# # perform infercnv operations to reveal cnv signal
+# infercnv_obj = infercnv::run(infercnv_obj,
+#                              cutoff=1,  # use 1 for smart-seq, 0.1 for 10x-genomics
+#                              out_dir="output_dir",  # dir is auto-created for storing outputs
+#                              cluster_by_groups=T,   # cluster
+#                              denoise=T,
+#                              HMM=T
+#                              )
 
 ```
 
@@ -246,13 +313,51 @@ run_go <- function(genes, label) {
 
 go_her2hi <- run_go(her2hi_genes, "HER2hi")
 go_her2lo <- run_go(her2lo_genes, "HER2lo")
+```
 
-# Dot plots
+```{r}
+# Show plot (will have overlapping text)
 dotplot(go_her2hi, showCategory = 15, title = "Pathways enriched in HER2hi")
 dotplot(go_her2lo, showCategory = 15, title = "Pathways enriched in HER2lo")
 
-# Save
-write.csv(as.data.frame(go_her2hi), here("results", "GO_HER2hi.csv"), row.names = FALSE)
-write.csv(as.data.frame(go_her2lo), here("results", "GO_HER2lo.csv"), row.names = FALSE)
+# SAVE AS PDF
+pdf("HER2_dotplots.pdf", width = 8, height = 14)  # save PDF
+  dotplot(go_her2hi, showCategory = 15, title = "Pathways enriched in HER2hi")
+  dotplot(go_her2lo, showCategory = 15, title = "Pathways enriched in HER2lo")
+dev.off()
+
+```
+
+NICHENET
+```{r}
+library(nichenetr)
+
+mibc_epithelial@meta.data$initial_celltype %>% table()
+
+#Read in NicheNet's own ligand-receptor networks
+lr_network <- readRDS(url("https://zenodo.org/record/7074291/files/lr_network_human_21122021.rds"))
+  ligand_target_matrix <- readRDS(url("https://zenodo.org/record/7074291/files/ligand_target_matrix_nsga2r_final.rds"))
+  weighted_networks <- readRDS(url("https://zenodo.org/record/7074291/files/weighted_networks_nsga2r_final.rds"))
+```
+
+NICHENET AGNOSTIC
+```{r}
+nichenet_output_agnostic <- nichenet_seuratobj_aggregate(
+  seurat_obj = mibc_epithelial, 
+  sender = "undefined",
+  receiver = "Endothelial", 
+  condition_colname = "aggregate",
+  condition_oi = "LCMV",
+  condition_reference = "SS",
+  expression_pct = 0.05,
+  ligand_target_matrix = ligand_target_matrix,
+  lr_network = lr_network,
+  weighted_networks = weighted_networks
+  )
+
+```
+
+```{r}
+# test
 
 ```
