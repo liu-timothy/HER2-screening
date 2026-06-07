@@ -17,14 +17,15 @@ set.seed(42)
 # 1. Install and load required R packages
 
 # Install (and load) CRAN packages
-pacman::p_load(Seurat, tidyverse, reticulate, ggplot2, ggrepel)
+if (!requireNamespace("pacman", quietly = TRUE)) install.packages("pacman")
+pacman::p_load(BiocManager, Seurat, tidyverse, reticulate, ggplot2, ggrepel, rmarkdown, here, purrr)
 
 # Install (and load) bioconductor packages
-BiocManager::install(c("clusterProfiler", "enrichplot", "org.Hs.eg.db", "sceasy"))
+BiocManager::install(c("clusterProfiler", "enrichplot", "org.Hs.eg.db"))
 pacman::p_load(clusterProfiler, enrichplot, org.Hs.eg.db, sceasy)
 
 # Install and load github packages
-pacman::p_load_gh("saeyslab/nichenetr")
+pacman::p_load_gh("saeyslab/nichenetr", "cellgeni/sceasy")
 
 # Python setup (runs only if anndata is missing)
 if (!reticulate::py_module_available("anndata")) reticulate::py_install("anndata")
