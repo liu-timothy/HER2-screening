@@ -15,36 +15,19 @@ output:
 set.seed(42)
 
 # 1. Install and load required R packages
-required_packages <- c("Seurat", "tidyverse", "here", "sceasy", "reticulate", "ggplot2", "ggrepel")
 
-for (pkg in required_packages) {
-  if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
-    install.packages(pkg)
-    library(pkg, character.only = TRUE)
-  }
-}
+# Install (and load) CRAN packages
+pacman::p_load(Seurat, tidyverse, reticulate, ggplot2, ggrepel)
 
-# 2. Install BiocManager if needed
-if (!requireNamespace("BiocManager", quietly = TRUE)) {
-  install.packages("BiocManager")
-}
+# Install (and load) bioconductor packages
+BiocManager::install(c("clusterProfiler", "enrichplot", "org.Hs.eg.db", "sceasy"))
+pacman::p_load(clusterProfiler, enrichplot, org.Hs.eg.db, sceasy)
 
-# 3. Install Bioconductor packages
-bioc_packages <- c("clusterProfiler", "enrichplot", "org.Hs.eg.db")
+# Install and load github packages
+pacman::p_load_gh("saeyslab/nichenetr")
 
-for (pkg in bioc_packages) {
-  if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
-    BiocManager::install(pkg, update = FALSE, ask = FALSE)
-    library(pkg, character.only = TRUE)
-  }
-}
-
-#4 Install NicheNet
-if (!require("nichenetr", quietly = TRUE)) {
-  install.packages("devtools")  # Only if you don't have it
-  devtools::install_github("saeyslab/nichenetr")
-  library(nichenetr)
-}
+# Python setup (runs only if anndata is missing)
+if (!reticulate::py_module_available("anndata")) reticulate::py_install("anndata")
 
 #5 Setup Python aand verify anndata
 library(reticulate)
@@ -77,7 +60,7 @@ if (!py_module_available("anndata")) {
 stopifnot("anndata is still not available. Please install manually: pip install anndata" = 
           py_module_available("anndata"))
 
-message("✓ All packages and Python modules are ready!")
+message("✓ All packages and Python modules ready")
 
 # 6 Create directories
 paths <- list(
